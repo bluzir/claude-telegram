@@ -96,6 +96,158 @@ permission_mode: acceptEdits
 
 Environment variables are interpolated with `${VAR_NAME}` syntax.
 
+## Workspace
+
+The `workspace` field in config is the working directory for Claude CLI. This is the directory Claude sees — its `CLAUDE.md`, `.claude/` settings, agents, skills, and all files.
+
+The simplest setup is a flat directory:
+
+```
+my-agent/
+├── CLAUDE.md                    # Instructions for Claude
+├── claude-telegram.yaml         # Bot config
+└── data/                        # Runtime data (auto-created)
+```
+
+For agents with capabilities (research, code generation, etc.), use the full Claude Code workspace structure:
+
+```
+my-agent/
+├── CLAUDE.md                    # Agent instructions & personality
+├── claude-telegram.yaml         # Bot config (can live here or elsewhere)
+├── .claude/
+│   ├── agents/                  # Sub-agents (spawned via Task tool)
+│   │   ├── aspect-researcher.md
+│   │   └── report-generator.md
+│   ├── skills/                  # Reusable capabilities
+│   │   ├── research-planner.md
+│   │   ├── quality-gate.md
+│   │   └── synthesis.md
+│   ├── commands/                # Slash commands (/research, etc.)
+│   │   └── research.md
+│   └── settings.local.json     # MCP servers, permissions
+├── artifacts/                   # Output files (gitignored)
+└── data/                        # Runtime data (gitignored)
+```
+
+### Multi-agent setup
+
+Run multiple bots from one directory, each pointing to its own workspace:
+
+```
+my-agents/
+├── researcher/                  # Workspace for research bot
+│   ├── CLAUDE.md
+│   ├── .claude/agents/
+│   ├── .claude/skills/
+│   └── .mcp.json
+├── assistant/                   # Workspace for assistant bot
+│   ├── CLAUDE.md
+│   └── .claude/skills/
+├── researcher.yaml              # Config for research bot
+├── assistant.yaml               # Config for assistant bot
+└── shared/                      # Shared data via add_dirs
+    └── knowledge/
+```
+
+```yaml
+# researcher.yaml
+token: ${RESEARCHER_BOT_TOKEN}
+workspace: ./researcher
+whitelist: [YOUR_USER_ID]
+permission_mode: acceptEdits
+timeout: 600
+system_prompt: "You are a research agent. Be thorough and cite sources."
+add_dirs:
+  - ./shared
+```
+
+```bash
+npx claude-telegram start --config researcher.yaml
+npx claude-telegram start --config assistant.yaml
+```
+
+### Example: Research Agent
+
+A workspace with agents and skills for deep research (based on [claude-pipe/examples/research-pipeline](https://github.com/bluzir/claude-pipe/tree/master/examples/research-pipeline)):
+
+```
+researcher/
+├── CLAUDE.md                          # "You are a research agent..."
+├── .claude/
+│   ├── agents/
+│   │   ├── aspect-researcher.md       # Worker: researches one aspect via web search
+│   │   └── report-generator.md        # Worker: generates grounded report
+│   ├── skills/
+│   │   ├── research-planner.md        # Topic → aspects + queries
+│   │   ├── synthesis.md               # Cross-aspect aggregation
+│   │   ├── quality-gate.md            # PASS/WARN/FAIL verdict
+│   │   ├── grounding-protocol.md      # No-hallucination rules
+│   │   └── search-safeguard.md        # Retry + jitter for search APIs
+│   ├── commands/
+│   │   └── research.md                # /research slash command
+│   └── settings.local.json            # Exa MCP server config
+├── artifacts/                         # Research outputs (gitignored)
+└── data/                              # Session data (gitignored)
+```
+
+The key idea: each file in `.claude/agents/` defines a sub-agent that Claude can spawn via the Task tool. Each file in `.claude/skills/` is a reusable instruction set. This is standard Claude Code — claude-telegram just connects it to Telegram.
+
+Example agent (`.claude/agents/aspect-researcher.md`):
+
+```markdown
+---
+name: aspect-researcher
+type: worker
+model: sonnet
+tools: [mcp__exa__web_search_exa, mcp__exa__crawling_exa, Read, Write]
+---
+
+# Aspect Researcher
+
+Research a single aspect of the topic using web search.
+Evaluate source quality, extract findings with full attribution.
+
+## Instructions
+
+1. Execute search queries via Exa MCP
+2. Classify sources by tier (S/A/B/C/D/X) and recency
+3. Skip X-tier and high-slop (>80% AI content) sources
+4. Extract findings with source URLs
+5. Write results to output path as YAML
+```
+
+Example skill (`.claude/skills/quality-gate.md`):
+
+```markdown
+# Quality Gate
+
+Evaluate research quality. Return PASS / WARN / FAIL.
+
+Criteria:
+- Source diversity (>= 3 distinct domains)
+- Tier distribution (at least 1 S/A source per aspect)
+- Finding density (>= 5 findings per aspect)
+- Slop ratio (< 30% flagged sources)
+```
+
+MCP server config (`.claude/settings.local.json`):
+
+```json
+{
+  "permissions": {
+    "allow": ["mcp__exa__web_search_exa", "mcp__exa__crawling_exa"]
+  },
+  "mcpServers": {
+    "exa": {
+      "command": "npx",
+      "args": ["-y", "exa-mcp-server"],
+      "env": { "EXA_API_KEY": "your-key" }
+    }
+  }
+}
+```
+
 ## Modules
 
 You can extend the bot without bloating the core by adding optional modules that register extra handlers (voice/video, API integrations, etc.).
