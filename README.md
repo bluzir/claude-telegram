@@ -73,6 +73,19 @@ permission_mode: acceptEdits
 # system_prompt: "Reply in Russian"     # injected into every call
 # add_dirs:                             # additional dirs for Claude
 #   - /path/to/shared/data
+#
+# --- Optional: security/capabilities (advanced) ---
+# disable_slash_commands: true            # disable Claude Code "skills" (slash commands)
+# setting_sources: ["user", "project"]    # ignore local settings in workspace (".claude/settings.local.json")
+# strict_mcp_config: true                 # disable MCP unless explicitly configured
+# mcp_config:                             # MCP server configs (paths or JSON strings)
+#   - ./mcp.json
+#
+# tools: ["Read", "Grep", "Glob"]         # restrict built-in tools ("" disables all tools)
+# allowed_tools:                          # allowlist with optional patterns (e.g. Bash(git:*))
+#   - "Read"
+# disallowed_tools:                       # explicit denylist
+#   - "Bash"
 
 # modules:                              # optional plugin modules (loaded at startup)
 #   - import: ./modules/voice.mjs       # resolved relative to `workspace`
@@ -277,6 +290,14 @@ This is intentionally minimal. Not included:
 - Queue system (one message at a time, extras are rejected)
 
 Any of these can be added as a [module](#modules) without touching the core.
+
+## Security Hardening Backlog (No Docker)
+
+1. Output DLP before sending to Telegram (token/key redaction + entropy filter).
+2. Filter `env` passed to `spawn()` (currently forwards all of `process.env` in `src/claude.ts`).
+3. Audit log: append-only log for tool usage/commands (and approval decisions if added later).
+4. Module policy: allowlist packages + deny absolute paths / `file:` by default (`src/modules.ts`).
+5. Reconsider default `permission_mode` (currently defaults to `acceptEdits` in `src/config.ts`).
 
 ## License
 

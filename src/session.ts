@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "node:fs";
+import { join } from "node:path";
 import { v5 as uuidv5, v4 as uuidv4 } from "uuid";
 
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
@@ -15,7 +15,13 @@ export class SessionStore {
     this.filePath = join(dataDir, "sessions.json");
 
     if (!existsSync(dataDir)) {
-      mkdirSync(dataDir, { recursive: true });
+      mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+    }
+    // Best-effort tighten perms even if the directory already existed.
+    try {
+      chmodSync(dataDir, 0o700);
+    } catch {
+      // Ignore (e.g. Windows, permission issues).
     }
 
     this.sessions = this.load();
@@ -33,7 +39,15 @@ export class SessionStore {
   }
 
   private save(): void {
-    writeFileSync(this.filePath, JSON.stringify(this.sessions, null, 2) + "\n");
+    writeFileSync(this.filePath, JSON.stringify(this.sessions, null, 2) + "\n", {
+      mode: 0o600,
+    });
+    // Best-effort tighten perms even if the file already existed.
+    try {
+      chmodSync(this.filePath, 0o600);
+    } catch {
+      // Ignore (e.g. Windows, permission issues).
+    }
   }
 
   /**

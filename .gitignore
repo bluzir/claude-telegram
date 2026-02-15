@@ -1,2 +1,11 @@
 node_modules/
 dist/
+
+# Local/runtime files that may contain secrets or state
+claude-telegram.yaml
+data/
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+.claude/*.local.*

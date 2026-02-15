@@ -9,13 +9,32 @@ const configSchema = z.object({
   workspace: z.string().min(1, "workspace is required"),
   whitelist: z.array(z.number()).default([]),
   permission_mode: z
-    .enum(["default", "acceptEdits", "bypassPermissions"])
+    .enum([
+      "default",
+      "acceptEdits",
+      "bypassPermissions",
+      "delegate",
+      "dontAsk",
+      "plan",
+    ])
     .default("acceptEdits"),
   claude_path: z.string().default("claude"),
   timeout: z.number().positive().default(300),
   model: z.string().optional(),
   system_prompt: z.string().optional(),
   add_dirs: z.array(z.string()).optional(),
+  tools: z.union([z.string(), z.array(z.string())]).optional(),
+  allowed_tools: z.array(z.string()).optional(),
+  disallowed_tools: z.array(z.string()).optional(),
+  disable_slash_commands: z.boolean().optional(),
+  setting_sources: z
+    .union([
+      z.string(),
+      z.array(z.enum(["user", "project", "local"])),
+    ])
+    .optional(),
+  strict_mcp_config: z.boolean().optional(),
+  mcp_config: z.array(z.string()).optional(),
   modules: z
     .array(
       z.union([
@@ -73,7 +92,8 @@ export function loadConfig(configPath?: string): BotConfig {
   }
 
   const raw = readFileSync(resolvedPath, "utf-8");
-  const parsed = yaml.load(raw) as RawConfig;
+  // Restrict YAML features to JSON-compatible types to avoid surprises from tags.
+  const parsed = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as RawConfig;
   const interpolated = interpolateDeep(parsed) as RawConfig;
   const validated = configSchema.parse(interpolated);
 
@@ -93,5 +113,19 @@ export function loadConfig(configPath?: string): BotConfig {
     systemPrompt: validated.system_prompt,
     addDirs: validated.add_dirs?.map((d) => resolve(d)),
     modules: validated.modules,
+    tools:
+      validated.tools === undefined
+        ? undefined
+        : Array.isArray(validated.tools)
+          ? validated.tools
+          : [validated.tools],
+    allowedTools: validated.allowed_tools,
+    disallowedTools: validated.disallowed_tools,
+    disableSlashCommands: validated.disable_slash_commands,
+    settingSources: Array.isArray(validated.setting_sources)
+      ? validated.setting_sources.join(",")
+      : validated.setting_sources,
+    strictMcpConfig: validated.strict_mcp_config,
+    mcpConfig: validated.mcp_config,
   };
 }

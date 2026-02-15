@@ -12,26 +12,55 @@ export interface BotConfig {
   token: string;
   workspace: string;
   whitelist: number[];
-  permissionMode: "default" | "acceptEdits" | "bypassPermissions";
+  permissionMode:
+    | "default"
+    | "acceptEdits"
+    | "bypassPermissions"
+    | "delegate"
+    | "dontAsk"
+    | "plan";
   claudePath: string;
   timeout: number;
   model?: string;
   systemPrompt?: string;
   addDirs?: string[];
   modules?: ModuleConfig[];
+
+  // Security / capability controls (forwarded to Claude Code CLI).
+  tools?: string[];
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  disableSlashCommands?: boolean;
+  settingSources?: string; // e.g. "user,project"
+  strictMcpConfig?: boolean;
+  mcpConfig?: string[];
 }
 
 export interface RawConfig {
   token: string;
   workspace: string;
   whitelist?: number[];
-  permission_mode?: "default" | "acceptEdits" | "bypassPermissions";
+  permission_mode?:
+    | "default"
+    | "acceptEdits"
+    | "bypassPermissions"
+    | "delegate"
+    | "dontAsk"
+    | "plan";
   claude_path?: string;
   timeout?: number;
   model?: string;
   system_prompt?: string;
   add_dirs?: string[];
   modules?: ModuleConfig[];
+
+  tools?: string | string[];
+  allowed_tools?: string[];
+  disallowed_tools?: string[];
+  disable_slash_commands?: boolean;
+  setting_sources?: string | Array<"user" | "project" | "local">;
+  strict_mcp_config?: boolean;
+  mcp_config?: string[];
 }
 
 export interface ClaudeResult {

@@ -42,8 +42,33 @@ function buildArgs(
     args.push("--append-system-prompt", config.systemPrompt);
   }
 
-  // Prompt must come before variadic flags
-  args.push(message);
+  if (config.disableSlashCommands) {
+    args.push("--disable-slash-commands");
+  }
+
+  if (config.settingSources) {
+    args.push("--setting-sources", config.settingSources);
+  }
+
+  if (config.strictMcpConfig) {
+    args.push("--strict-mcp-config");
+  }
+
+  if (config.tools && config.tools.length > 0) {
+    args.push("--tools", ...config.tools);
+  }
+
+  if (config.allowedTools && config.allowedTools.length > 0) {
+    args.push("--allowed-tools", ...config.allowedTools);
+  }
+
+  if (config.disallowedTools && config.disallowedTools.length > 0) {
+    args.push("--disallowed-tools", ...config.disallowedTools);
+  }
+
+  if (config.mcpConfig && config.mcpConfig.length > 0) {
+    args.push("--mcp-config", ...config.mcpConfig);
+  }
 
   if (config.addDirs && config.addDirs.length > 0) {
     for (const dir of config.addDirs) {
@@ -51,6 +76,8 @@ function buildArgs(
     }
   }
 
+  // Important: prevent prompt injection via CLI flags (e.g. message="--help").
+  args.push("--", message);
   return args;
 }
 
