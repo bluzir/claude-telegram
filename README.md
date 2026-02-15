@@ -1,8 +1,14 @@
 # claude-telegram
 
+[![npm](https://img.shields.io/npm/v/claude-telegram)](https://www.npmjs.com/package/claude-telegram)
+
 A simple and modular Telegram orchestrator on top of Claude Code CLI.
 
 One npm package that connects a Telegram bot to Claude Code via `--resume` sessions, with whitelist access control and live activity status.
+
+```bash
+npm install -g claude-telegram
+```
 
 ## claude-telegram vs OpenClaw
 
@@ -25,7 +31,13 @@ One npm package that connects a Telegram bot to Claude Code via `--resume` sessi
 curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-**3. Give Claude the link and ask it to install:**
+**3. Install claude-telegram:**
+```bash
+npm install -g claude-telegram
+```
+Or run without installing via `npx claude-telegram`.
+
+Alternatively, give Claude the link and let it handle everything:
 ```bash
 claude "install claude-telegram from github.com/bluzir/claude-telegram and set it up for my Telegram bot"
 ```
