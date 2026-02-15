@@ -13,9 +13,31 @@ export interface CreateBotOptions {
   onModuleContext?: (ctx: ModuleContext) => void;
 }
 
+function sanitizeErrorForUser(text: string, workspace: string, maxLen: number): string {
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return "";
+
+  const lines = normalized.split("\n");
+  const kept: string[] = [];
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    // Drop Node/JS stack-trace lines and other noisy frames.
+    if (/^\s*at\s+/.test(rawLine)) continue;
+    if (/^\s*Node\.js v\d+/.test(rawLine)) continue;
+    kept.push(line);
+    if (kept.length >= 2) break;
+  }
+
+  let out = kept.length > 0 ? kept.join("\n") : lines[0]?.trim() || "";
+  out = out.replace(/\b\d{6,}:[A-Za-z0-9_-]{20,}\b/g, "<TELEGRAM_TOKEN_REDACTED>");
+  if (workspace) out = out.split(workspace).join("<WORKSPACE>");
+  return out.slice(0, maxLen);
+}
+
 function buildHelpText(modules: BotModule[]): string {
   const lines: string[] = [
-    "Send me any text message to chat with Claude.\n",
+    "Send any message to chat with Claude Code. I'll show a live status while Claude works.\n",
     "/cancel — stop current request",
     "/clear — start a new conversation",
     "/reload — reload modules",
@@ -86,7 +108,9 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
     if (config.whitelist.length === 0 || !config.whitelist.includes(userId)) {
       if (ctx.chat) {
         try {
-          await ctx.reply("Access denied.");
+          await ctx.reply(
+            `Sorry, you don't have access to this bot. Ask the owner to add your user ID to the whitelist.\n\nYour ID: ${userId}`
+          );
         } catch {
           // Ignore reply failures for non-message updates.
         }
@@ -99,7 +123,10 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
 
   // --- Commands ---
   bot.command("start", async (ctx) => {
-    await ctx.reply("Hello!\n\n" + helpText);
+    const firstName = ctx.from?.first_name || "there";
+    await ctx.reply(
+      `Hi ${firstName}! I'm a bridge to Claude Code — an AI that can read, write, and run code in a workspace on the server.\n\nSend any message and I'll pass it to Claude. You'll see a live status while it works.\n\nTry: "What files are in the workspace?"\n\n${helpText}`
+    );
   });
 
   bot.command("help", async (ctx) => {
@@ -171,7 +198,7 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
     // Concurrency guard: one message at a time per user
     if (busy.has(userId)) {
       await ctx.reply(
-        "Still working on previous message... Send /cancel to stop."
+        "Still working on your previous message. Send /cancel to stop, or wait for the response."
       );
       return;
     }
@@ -256,13 +283,23 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
       const finalResult = await runAfterClaudeHooks(ctx, result);
 
       if (finalResult.success && finalResult.output) {
-        await sendMessage(ctx, finalResult.output);
+        const parts: string[] = [];
+        const secs = Math.round(finalResult.durationMs / 1000);
+        if (secs > 0) parts.push(`${secs}s`);
+        if (finalResult.costUsd && finalResult.costUsd > 0)
+          parts.push(`$${finalResult.costUsd.toFixed(4)}`);
+        if (config.model) parts.push(config.model);
+        const footer = parts.length > 0 ? parts.join(" · ") : undefined;
+        await sendMessage(ctx, finalResult.output, { footer });
       } else if (finalResult.success && !finalResult.output) {
-        await ctx.reply("(empty response)");
+        await ctx.reply("Claude returned an empty response. Try rephrasing, or /clear to start fresh.");
       } else {
-        const errorMsg = finalResult.error
-          ? `Error: ${finalResult.error.slice(0, 300)}`
-          : "Unknown error occurred.";
+        const safeError = finalResult.error
+          ? sanitizeErrorForUser(finalResult.error, config.workspace, 400)
+          : undefined;
+        const errorMsg = safeError
+          ? `Something went wrong: ${safeError}`
+          : "Something went wrong. Try again, or /clear to start fresh.";
         await ctx.reply(errorMsg);
       }
     } catch (err) {
@@ -271,12 +308,18 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
 
       // Try to update the status message with error
       try {
-        const errorText =
-          err instanceof Error ? err.message : "Unknown error";
+        const errorText = err instanceof Error ? err.message : "Unknown error";
+        const safeErrorText = sanitizeErrorForUser(
+          errorText,
+          config.workspace,
+          400
+        );
         await bot.api.editMessageText(
           chatId,
           msgId,
-          `Error: ${errorText.slice(0, 300)}`
+          safeErrorText
+            ? `Something went wrong: ${safeErrorText}\n\nTry again or /clear to start fresh.`
+            : "Something went wrong.\n\nTry again or /clear to start fresh."
         );
       } catch {
         // Give up on status message
@@ -367,13 +410,15 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
     job.canceled = true;
     job.activity.stop();
 
-    // Best-effort status update; main handler will also clean up.
+    // Best-effort status update; only send a separate reply if the edit fails.
+    let statusUpdated = false;
     try {
       await bot.api.editMessageText(
         job.chatId,
         job.statusMessageId,
         "Cancelling..."
       );
+      statusUpdated = true;
     } catch {
       // Ignore
     }
@@ -393,7 +438,9 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
       }
     }, 5000);
 
-    await ctx.reply("Cancelling... (may take a few seconds)");
+    if (!statusUpdated) {
+      await ctx.reply("Cancelling... (may take a few seconds)");
+    }
   });
 
   bot.command("clear", async (ctx) => {
@@ -428,7 +475,7 @@ export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bo
     }
 
     sessionStore.resetSession(userId);
-    await ctx.reply("Session cleared. Starting fresh.");
+    await ctx.reply("Conversation cleared. Claude won't remember previous messages.");
   });
 
   // --- Text message handler ---

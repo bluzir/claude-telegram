@@ -88,15 +88,32 @@ function splitIntoChunks(
  * Send a potentially long message, splitting into chunks
  * and formatting as MarkdownV2.
  */
-export async function sendMessage(ctx: Context, text: string): Promise<void> {
+export async function sendMessage(
+  ctx: Context,
+  text: string,
+  options?: { footer?: string }
+): Promise<void> {
   if (!text.trim()) {
     await ctx.reply("(empty response)");
     return;
   }
 
   const chunks = splitIntoChunks(text);
+  const total = chunks.length;
 
-  for (const chunk of chunks) {
+  for (let i = 0; i < total; i++) {
+    let chunk = chunks[i];
+
+    // Chunk indicator when message is split into multiple parts
+    if (total > 1) {
+      chunk += `\n\n— ${i + 1}/${total} —`;
+    }
+
+    // Append footer to the last chunk
+    if (options?.footer && i === total - 1) {
+      chunk += `\n\n${options.footer}`;
+    }
+
     const formatted = toTelegramMarkdown(chunk);
     try {
       await ctx.reply(formatted, { parse_mode: "MarkdownV2" });

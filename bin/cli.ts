@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
 import { loadConfig } from "../src/config.js";
 import { startBot } from "../src/bot.js";
 import { runInit } from "../src/init.js";
+import { runCheck } from "../src/check.js";
 import { Bot } from "grammy";
 
 const args = process.argv.slice(2);
@@ -22,65 +22,12 @@ async function cmdStart() {
   await startBot(config);
 }
 
-function runCheck(configPath?: string): void {
-  console.log("[check] Validating config...");
-
-  let config;
-  try {
-    config = loadConfig(configPath);
-    console.log(`  ✓ Config loaded`);
-    console.log(`  ✓ Workspace: ${config.workspace}`);
-    console.log(
-      `  ✓ Whitelist: ${config.whitelist.length} user(s)`
-    );
-    console.log(`  ✓ Permission mode: ${config.permissionMode}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`  ✗ Config error: ${msg}`);
-    process.exit(1);
-  }
-
-  // Check Claude CLI
-  try {
-    const version = execFileSync(config.claudePath, ["--version"], {
-      encoding: "utf-8",
-    }).trim();
-    console.log(`  ✓ Claude CLI: ${version}`);
-  } catch {
-    console.error(`  ✗ Claude CLI not found or not executable: ${config.claudePath}`);
-    process.exit(1);
-  }
-
-  // Sanity-check required flags used by this package (no API calls).
-  try {
-    const help = execFileSync(config.claudePath, ["--help"], {
-      encoding: "utf-8",
-    });
-    const required = [
-      "--output-format",
-      "stream-json",
-      "--permission-mode",
-      "--resume",
-      "--session-id",
-    ];
-    const missing = required.filter((s) => !help.includes(s));
-    if (missing.length > 0) {
-      console.error(
-        `  ✗ Claude CLI is missing required flags: ${missing.join(", ")}`
-      );
-      process.exit(1);
-    }
-    console.log("  ✓ Claude CLI flags look compatible");
-  } catch {
-    console.error("  ✗ Failed to validate Claude CLI help output");
-    process.exit(1);
-  }
-
-  console.log("\nAll checks passed.");
-}
-
 function cmdCheck() {
-  runCheck(getConfigPath());
+  try {
+    runCheck(getConfigPath());
+  } catch {
+    process.exit(1);
+  }
 }
 
 async function cmdInit() {
@@ -108,8 +55,20 @@ async function cmdWhoami() {
   }
 
   const bot = new Bot(token);
+  const timeoutMs = 5 * 60 * 1000;
+  let done = false;
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true;
+    console.error(
+      `[whoami] Timed out after ${Math.round(timeoutMs / 1000)}s (no message received).`
+    );
+    process.exitCode = 1;
+    bot.stop();
+  }, timeoutMs);
 
   bot.on("message", async (ctx) => {
+    if (done) return;
     if (ctx.chat?.type !== "private") {
       try {
         await ctx.reply("Please message me in a private chat.");
@@ -118,6 +77,9 @@ async function cmdWhoami() {
       }
       return;
     }
+
+    done = true;
+    clearTimeout(timer);
 
     const userId = ctx.from?.id;
     const username = ctx.from?.username || "(no username)";
@@ -132,12 +94,20 @@ async function cmdWhoami() {
         `Name: ${name}\n\n` +
         `Add ${userId} to your whitelist config.`
     );
+
+    bot.stop();
   });
 
   console.log("[whoami] Bot started. Send any message to get your user ID.");
+  console.log("[whoami] Will stop after the first private message.");
+  console.log(`[whoami] Timeout: ${Math.round(timeoutMs / 60000)} minutes.\n`);
   console.log("[whoami] Press Ctrl+C to stop.\n");
 
-  await bot.start();
+  try {
+    await bot.start();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // --- Main ---

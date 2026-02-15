@@ -208,7 +208,7 @@ export function runClaude(options: RunClaudeOptions): {
         resolve({
           success: false,
           output: "",
-          error: `Timed out after ${config.timeout}s`,
+          error: `Claude took too long (>${Math.floor(config.timeout / 60)}min). Try a simpler request or send again.`,
           sessionId: detectedSessionId || sessionId,
           durationMs,
         });
@@ -227,7 +227,7 @@ export function runClaude(options: RunClaudeOptions): {
         resolve({
           success: false,
           output: "",
-          error: "Session not found, reset for next message",
+          error: "Conversation couldn't be restored (session expired). Send your message again to start fresh.",
           sessionId: detectedSessionId || sessionId,
           durationMs,
         });

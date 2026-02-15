@@ -1,7 +1,8 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { resolve, join } from "node:path";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { runCheck } from "./check.js";
 
 function configTemplate(token: string, whitelist: number[], permissionMode: string): string {
   return `token: ${token}
@@ -160,16 +161,26 @@ export async function runInit(targetDir?: string): Promise<void> {
     const whitelistAnswer = await rl.question(
       "Whitelist user IDs (comma-separated): "
     );
-    const whitelist = whitelistAnswer
+    const rawEntries = whitelistAnswer
       .split(",")
       .map((s) => s.trim())
-      .filter(Boolean)
+      .filter(Boolean);
+    const whitelist = rawEntries
       .map(Number)
       .filter((n) => !isNaN(n) && n > 0);
 
+    const invalidCount = rawEntries.length - whitelist.length;
+    if (invalidCount > 0) {
+      console.log(
+        `  Warning: ${invalidCount} invalid ID(s) ignored (must be positive integers).`
+      );
+    }
+
     if (whitelist.length === 0) {
       console.log(
-        "  Warning: empty whitelist — no one will be able to use the bot."
+        "  ⚠ No user IDs entered.\n" +
+        "  Nobody can use the bot until you add IDs to the whitelist.\n" +
+        '  Run "npx claude-telegram whoami" to find your Telegram user ID.'
       );
     }
 
@@ -196,6 +207,12 @@ export async function runInit(targetDir?: string): Promise<void> {
 
     // Write files
     writeFileSync(configPath, configTemplate(token, whitelist, permissionMode));
+    // Best-effort: restrict access to config file (may contain secrets).
+    try {
+      chmodSync(configPath, 0o600);
+    } catch {
+      // Ignore (e.g. Windows, permission errors).
+    }
     console.log(`  Created claude-telegram.yaml`);
 
     const claudeMdPath = join(dir, "CLAUDE.md");
@@ -229,6 +246,17 @@ export async function runInit(targetDir?: string): Promise<void> {
     }
     console.log(`${whitelist.length === 0 ? "3" : "2"}. Validate: npx claude-telegram check${targetDir ? ` --config ${configPath}` : ""}`);
     console.log(`${whitelist.length === 0 ? "4" : "3"}. Start:    npx claude-telegram start${targetDir ? ` --config ${configPath}` : ""}`);
+
+    const checkAnswer = await rl.question("\nRun config check now? (Y/n) ");
+    if (checkAnswer.trim().toLowerCase() !== "n") {
+      console.log();
+      try {
+        runCheck(configPath);
+      } catch {
+        // runCheck prints error details; propagate failure via exit code.
+        process.exitCode = 1;
+      }
+    }
   } finally {
     rl.close();
   }
