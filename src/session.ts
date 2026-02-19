@@ -9,6 +9,7 @@ type SessionMap = Record<string, string>;
 export class SessionStore {
   private filePath: string;
   private sessions: SessionMap;
+  private freshSessions = new Set<string>();
 
   constructor(workspace: string) {
     const dataDir = join(workspace, "data", ".claude-telegram");
@@ -59,7 +60,7 @@ export class SessionStore {
     const existing = this.sessions[key];
 
     if (existing) {
-      return { sessionId: existing, isNew: false };
+      return { sessionId: existing, isNew: this.freshSessions.has(key) };
     }
 
     // Deterministic first session ID
@@ -70,12 +71,20 @@ export class SessionStore {
   }
 
   /**
+   * Mark a fresh session as confirmed (no longer new).
+   */
+  confirmSession(userId: number): void {
+    this.freshSessions.delete(String(userId));
+  }
+
+  /**
    * Reset session for a user (generates new random UUID).
    */
   resetSession(userId: number): string {
     const key = String(userId);
     const sessionId = uuidv4();
     this.sessions[key] = sessionId;
+    this.freshSessions.add(key);
     this.save();
     return sessionId;
   }
