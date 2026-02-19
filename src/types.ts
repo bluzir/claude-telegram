@@ -3,22 +3,22 @@ import type { ChildProcess } from "node:child_process";
 export type ModuleConfig =
   | string
   | {
-    import: string;
-    enabled?: boolean;
-    options?: Record<string, unknown>;
-  };
+      import: string;
+      enabled?: boolean;
+      options?: Record<string, unknown>;
+    };
 
 export interface BotConfig {
   token: string;
   workspace: string;
   whitelist: number[];
   permissionMode:
-  | "default"
-  | "acceptEdits"
-  | "bypassPermissions"
-  | "delegate"
-  | "dontAsk"
-  | "plan";
+    | "default"
+    | "acceptEdits"
+    | "bypassPermissions"
+    | "delegate"
+    | "dontAsk"
+    | "plan";
   claudePath: string;
   timeout: number;
   model?: string;
@@ -42,12 +42,12 @@ export interface RawConfig {
   workspace: string;
   whitelist?: number[];
   permission_mode?:
-  | "default"
-  | "acceptEdits"
-  | "bypassPermissions"
-  | "delegate"
-  | "dontAsk"
-  | "plan";
+    | "default"
+    | "acceptEdits"
+    | "bypassPermissions"
+    | "delegate"
+    | "dontAsk"
+    | "plan";
   claude_path?: string;
   timeout?: number;
   model?: string;
