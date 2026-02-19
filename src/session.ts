@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "node:fs";
 import { join } from "node:path";
-import { v5 as uuidv5 } from "uuid";
+import { v5 as uuidv5, v4 as uuidv4 } from "uuid";
 
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
@@ -79,18 +79,21 @@ export class SessionStore {
   }
 
   /**
-   * Reset session for a user (deletes stored ID so next getSession creates a fresh one).
+   * Reset session for a user (generates new random UUID).
    */
-  resetSession(userId: number): void {
+  resetSession(userId: number): string {
     const key = String(userId);
-    delete this.sessions[key];
+    const sessionId = uuidv4();
+    this.sessions[key] = sessionId;
     this.save();
+    return sessionId;
   }
 
   /**
    * Mark a session as needing a fresh start (e.g., after resume failure).
+   * Replaces the session with a new random UUID.
    */
-  refreshSession(userId: number): void {
-    this.resetSession(userId);
+  refreshSession(userId: number): string {
+    return this.resetSession(userId);
   }
 }
