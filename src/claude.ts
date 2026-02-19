@@ -247,6 +247,7 @@ export function runClaude(options: RunClaudeOptions): {
       }
 
       const { output, costUsd } = extractResult(events);
+      if (isNew) sessionStore.confirmSession(userId);
       resolve({
         success: true,
         output: output || "",
