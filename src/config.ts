@@ -47,6 +47,7 @@ const configSchema = z.object({
       ])
     )
     .optional(),
+  session_namespace: z.string().optional(),
 });
 
 /**
@@ -127,5 +128,6 @@ export function loadConfig(configPath?: string): BotConfig {
       : validated.setting_sources,
     strictMcpConfig: validated.strict_mcp_config,
     mcpConfig: validated.mcp_config,
+    sessionNamespace: validated.session_namespace,
   };
 }

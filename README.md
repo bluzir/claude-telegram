@@ -86,6 +86,10 @@ permission_mode: acceptEdits
 # add_dirs:                             # additional dirs for Claude
 #   - /path/to/shared/data
 #
+# --- Optional: multi-instance ---
+# session_namespace: my-bot               # unique seed for session IDs (required when
+#                                         # multiple bots share the same whitelist user)
+#
 # --- Optional: security/capabilities (advanced) ---
 # disable_slash_commands: true            # disable Claude Code "skills" (slash commands)
 # setting_sources: ["user", "project"]    # ignore local settings in workspace (".claude/settings.local.json")

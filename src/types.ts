@@ -34,6 +34,7 @@ export interface BotConfig {
   settingSources?: string; // e.g. "user,project"
   strictMcpConfig?: boolean;
   mcpConfig?: string[];
+  sessionNamespace?: string;
 }
 
 export interface RawConfig {
@@ -53,6 +54,7 @@ export interface RawConfig {
   system_prompt?: string;
   add_dirs?: string[];
   modules?: ModuleConfig[];
+  session_namespace?: string;
 
   tools?: string | string[];
   allowed_tools?: string[];

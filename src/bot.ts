@@ -61,7 +61,7 @@ function buildHelpText(modules: BotModule[]): string {
  */
 export function createBot(config: BotConfig, options: CreateBotOptions = {}): Bot {
   const bot = new Bot(config.token);
-  const sessionStore = new SessionStore(config.workspace);
+  const sessionStore = new SessionStore(config.workspace, config.sessionNamespace);
   let modules = options.modules ?? [];
   let helpText = buildHelpText(modules);
 

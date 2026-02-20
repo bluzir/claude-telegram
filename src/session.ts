@@ -9,10 +9,12 @@ type SessionMap = Record<string, string>;
 export class SessionStore {
   private filePath: string;
   private sessions: SessionMap;
+  private namespace?: string;
 
-  constructor(workspace: string) {
+  constructor(workspace: string, namespace?: string) {
     const dataDir = join(workspace, "data", ".claude-telegram");
     this.filePath = join(dataDir, "sessions.json");
+    this.namespace = namespace;
 
     if (!existsSync(dataDir)) {
       mkdirSync(dataDir, { recursive: true, mode: 0o700 });
@@ -63,7 +65,14 @@ export class SessionStore {
     }
 
     // Deterministic first session ID
-    const sessionId = uuidv5(key, NAMESPACE);
+    let sessionId: string;
+    if (this.namespace) {
+      // Use custom namespace to seed the generation
+      const ns = uuidv5(this.namespace, NAMESPACE);
+      sessionId = uuidv5(key, ns);
+    } else {
+      sessionId = uuidv5(key, NAMESPACE);
+    }
     this.sessions[key] = sessionId;
     this.save();
     return { sessionId, isNew: true };
