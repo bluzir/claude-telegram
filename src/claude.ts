@@ -201,6 +201,13 @@ export function runClaude(options: RunClaudeOptions): {
             event.session_id
           ) {
             detectedSessionId = event.session_id;
+            // The CLI has now created the session on disk, so the next run must
+            // --resume it and must never pass --session-id again. Confirm here
+            // rather than on a successful close: a run interrupted by the stop
+            // button, /cancel or the timeout leaves the session file behind,
+            // and a retry with --session-id then fails with "Session ID … is
+            // already in use" — permanently, since nothing clears the flag.
+            if (isNew) sessionStore.confirmSession(sessionKey);
           }
         }
       }
@@ -247,14 +254,14 @@ export function runClaude(options: RunClaudeOptions): {
       // use" with a capital S.
       const stderr = stderrChunks.join("");
       const stderrLc = stderr.toLowerCase();
-      if (
-        code !== 0 &&
-        !isNew &&
-        (stderrLc.includes("session") ||
-          stderrLc.includes("not found") ||
-          stderrLc.includes("enoent") ||
-          stderrLc.includes("already in use"))
-      ) {
+      // A locked session must be rotated even on an `isNew` run: the id is
+      // already taken on disk, so retrying it would fail the same way forever.
+      const sessionLocked = stderrLc.includes("already in use");
+      const sessionLost =
+        stderrLc.includes("session") ||
+        stderrLc.includes("not found") ||
+        stderrLc.includes("enoent");
+      if (code !== 0 && (sessionLocked || (!isNew && sessionLost))) {
         // Session lost or locked — refresh and let caller retry or handle
         sessionStore.refreshSession(sessionKey);
         resolve({
